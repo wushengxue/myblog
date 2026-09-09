@@ -1,0 +1,24 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: myblog-backend
+  datasource:
+    url: jdbc:h2:file:./data/myblog;AUTO_SERVER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  h2:
+    console:
+      enabled: true
+
+app:
+  cors-origins: http://127.0.0.1:5174,http://localhost:5174,http://127.0.0.1:5173,http://localhost:5173
