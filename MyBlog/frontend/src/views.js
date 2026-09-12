@@ -96,20 +96,20 @@ export const ContentDetail = {
   components: { EmptyBlock },
   props: ['item', 'loading', 'error', 'currentUser', 'comments', 'annotations', 'aiChats', 'tagName', 'askAiAction', 'commentAction'], emits: ['go', 'retry', 'subscribe', 'delete'],
   setup(props, { emit }) {
-    const comment = ref(''); const error = ref(''); const commentStatus = ref('idle'); const selectedText = ref(''); const question = ref(''); const aiStatus = ref('idle'); const aiError = ref(''); const aiPanelOpen = ref(false)
+    const comment = ref(''); const commentError = ref(''); const commentStatus = ref('idle'); const selectedText = ref(''); const question = ref(''); const aiStatus = ref('idle'); const aiError = ref(''); const aiPanelOpen = ref(false)
     const selectionAction = ref({ visible: false, top: 0, left: 0 })
     const own = computed(() => props.currentUser?.id === props.item?.author?.id)
     const relatedComments = computed(() => props.comments.filter((entry) => entry.contentId === props.item?.id))
     const relatedChats = computed(() => props.aiChats.filter((entry) => entry.articleId === props.item?.id && entry.userId === (props.currentUser?.id || 'guest')).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)))
     async function sendComment() {
-      error.value = ''
+      commentError.value = ''
       commentStatus.value = 'loading'
       try {
         await props.commentAction(props.item, comment.value)
         comment.value = ''
         commentStatus.value = 'success'
       } catch (err) {
-        error.value = err.message || '评论提交失败，请重试'
+        commentError.value = err.message || '评论提交失败，请重试'
         commentStatus.value = 'error'
       }
       if (commentStatus.value === 'success') window.setTimeout(() => { commentStatus.value = 'idle' }, 1200)
@@ -150,9 +150,120 @@ export const ContentDetail = {
       if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
     watch(() => props.item?.id, () => { selectedText.value = ''; question.value = ''; aiError.value = ''; aiPanelOpen.value = false; selectionAction.value = { visible: false, top: 0, left: 0 } })
-    return { comment, error, commentStatus, selectedText, question, aiStatus, aiError, aiPanelOpen, selectionAction, own, relatedComments, relatedChats, sendComment, ask, captureSelection, openAiPanel, closeAiPanel, scrollToSection, formatDate, formatDateTime }
+    return { comment, commentError, commentStatus, selectedText, question, aiStatus, aiError, aiPanelOpen, selectionAction, own, relatedComments, relatedChats, sendComment, ask, captureSelection, openAiPanel, closeAiPanel, scrollToSection, formatDate, formatDateTime }
   },
-  template: `<section v-if="item" class="article-page"><div v-if="loading" class="detail-loading-notice" aria-live="polite">正在加载最新内容…</div><div v-if="error" class="detail-error-notice" role="alert"><span>{{error}}</span><button type="button" @click="$emit('retry')">重新加载 <span>↻</span></button></div><div class="article-top"><button class="back-link" @click="$emit('go','topics')">← 返回内容列表</button><div class="article-kicker"><span>{{formatDate(item.publishedAt || item.updatedAt)}}</span><span>{{item.readingTime || item.language || '问题'}}</span><span>{{item.views || 0}} 次阅读</span></div></div><div class="article-layout"><aside class="article-aside"><button class="author-note author-link" @click="$emit('go','blog/'+item.author.id)"><span class="user-avatar">{{item.author.name.slice(0,1)}}</span><span><strong>{{item.author.name}}</strong><small>{{item.author.bio}}</small></span></button><div v-if="item.type==='article'" class="toc"><p class="toc-label">目录</p><button v-for="(section,index) in item.sections" :key="section.id" type="button" @click="scrollToSection(section.id)"><span>0{{index+1}}</span>{{section.title}}</button></div><div class="article-tags"><button v-for="tag in item.tagIds" :key="tag" @click="$emit('go','topics?tag='+tag)">#{{tagName(tag)}}</button></div><button class="ai-launcher" @click="openAiPanel"><span>✦</span><span>AI 辅助阅读</span><small>选择正文后可带入问题</small></button><button class="heading-action" @click="$emit('subscribe',item.author.id)">订阅作者 <span>+</span></button><button v-if="own" class="heading-action" @click="$emit('go','edit/'+item.type+'/'+item.id)">编辑内容 <span>↗</span></button><button v-if="own" class="heading-action danger-link" @click="$emit('delete',item)">删除内容</button></aside><div class="article-main"><div class="article-heading"><p class="eyebrow">{{item.type==='article'?'FEATURED ESSAY':item.type==='code'?'CODE NOTE':'QUESTION'}}</p><h1>{{item.title}}</h1><p class="article-summary">{{item.summary || item.description || item.content}}</p></div><div v-if="item.type==='article' && item.image" class="article-cover cover-large" :style="{backgroundImage:'linear-gradient(135deg,rgba(24,22,19,.08),rgba(24,22,19,.48)),url('+item.image+')'}"></div><div v-if="item.type==='article'" class="article-body" @mouseup="captureSelection" @touchend="captureSelection"><section v-for="section in item.sections" :id="section.id" :key="section.id" class="article-section"><h2>{{section.title}}</h2><template v-for="(block,index) in section.blocks || []" :key="index"><p v-if="block.type==='paragraph'">{{block.text}}</p><blockquote v-else-if="block.type==='quote'">{{block.text}}</blockquote><ul v-else-if="block.type==='list'"><li v-for="line in block.items" :key="line">{{line}}</li></ul><pre v-else class="article-code"><code>{{block.text}}</code></pre></template><p v-for="paragraph in section.body || []" :key="paragraph">{{paragraph}}</p></section></div><pre v-else-if="item.type==='code'" class="code-detail" @mouseup="captureSelection" @touchend="captureSelection"><code>{{item.code}}</code></pre><div v-else class="question-detail" @mouseup="captureSelection" @touchend="captureSelection"><p>{{item.content}}</p><pre v-if="item.relatedCode"><code>{{item.relatedCode}}</code></pre></div><section class="comments-section"><div class="section-heading compact"><div><p class="eyebrow">RESPONSES</p><h2>回应 <small>{{relatedComments.length}}</small></h2></div></div><form class="comment-form" @submit.prevent="sendComment"><textarea v-model="comment" placeholder="分享你的想法…" rows="4" :disabled="commentStatus==='loading'"></textarea><p v-if="error" class="field-error">{{error}}</p><div><span>{{commentStatus==='success'?'评论已发布':commentStatus==='loading'?'正在发布…':'至少 5 个字符'}}</span><button class="ai-submit" :disabled="commentStatus==='loading'">{{commentStatus==='loading'?'发布中…':'发布评论'} <b>↗</b></button></div></form><div v-for="entry in relatedComments" :key="entry.id" class="comment-row"><div class="comment-avatar">{{entry.userName.slice(0,1)}}</div><div><div class="comment-meta"><strong>{{entry.userName}}</strong><span>{{formatDate(entry.createdAt)}}</span></div><p>{{entry.content}}</p></div></div></section></div></div><button v-if="selectionAction.visible" class="selection-ai-button" :style="{top:selectionAction.top+'px',left:selectionAction.left+'px'}" @mousedown.prevent @click="openAiPanel">询问 AI</button><div v-if="aiPanelOpen" class="ai-panel-backdrop" @click.self="closeAiPanel"><aside class="ai-panel" role="dialog" aria-modal="true" aria-label="AI 辅助阅读"><div class="ai-panel-head"><div><p class="eyebrow">AI READING</p><h2>和这篇文章聊聊</h2></div><button class="panel-close" aria-label="关闭 AI 面板" @click="closeAiPanel">×</button></div><p class="ai-context-title">当前上下文：{{item.title}}</p><div v-if="selectedText" class="selected-quote"><span>已选文字</span><p>{{selectedText}}</p></div><p v-else class="ai-hint">尚未选择正文。你可以直接提问，或先选择一段文字后再打开此面板。</p><div v-if="relatedChats.length" class="ai-chat-list"><article v-for="chat in relatedChats" :key="chat.id" class="ai-chat"><div v-if="chat.selectedText" class="selected-quote ai-chat-quote"><span>关联文字</span><p>{{chat.selectedText}}</p></div><div class="ai-question"><span>你</span><div><p>{{chat.question}}</p><small>{{formatDateTime(chat.createdAt)}}</small></div></div><div class="ai-answer"><span>AI</span><p>{{chat.answer}}</p></div></article></div><form class="ai-form" @submit.prevent="ask"><textarea v-model="question" rows="4" placeholder="输入一个具体问题，例如：这段话对我的工作有什么启发？"></textarea><p v-if="aiError" class="ai-error">{{aiError}}</p><button class="ai-submit" :disabled="aiStatus==='loading'">{{aiStatus==='loading'?'AI 正在思考…':aiError?'重新提交':'询问 AI'}} <span>↗</span></button></form></aside></div></section><section v-else-if="loading" class="content-page"><EmptyBlock title="正在加载内容" description="正在整理正文和评论，请稍候。" /></section><section v-else-if="error" class="content-page"><EmptyBlock title="内容加载失败" :description="error" action="重新加载" @action="$emit('retry')" /></section><section v-else class="content-page"><EmptyBlock title="内容不存在" description="这个链接可能已失效。" action="回到首页" @action="$emit('go','home')"/></section>`,
+  template: `
+    <section v-if="item" class="article-page">
+      <div v-if="loading" class="detail-loading-notice" aria-live="polite">正在加载最新内容...</div>
+      <div v-if="error" class="detail-error-notice" role="alert">
+        <span>{{ error }}</span>
+        <button type="button" @click="$emit('retry')">重新加载 <span>↻</span></button>
+      </div>
+      <div class="article-top">
+        <button class="back-link" @click="$emit('go', 'topics')">← 返回内容列表</button>
+        <div class="article-kicker">
+          <span>{{ formatDate(item.publishedAt || item.updatedAt) }}</span>
+          <span>{{ item.readingTime || item.language || '问题' }}</span>
+          <span>{{ item.views || 0 }} 次阅读</span>
+        </div>
+      </div>
+      <div class="article-layout">
+        <aside class="article-aside">
+          <button class="author-note author-link" @click="$emit('go', 'blog/' + item.author.id)">
+            <span class="user-avatar">{{ item.author.name.slice(0, 1) }}</span>
+            <span><strong>{{ item.author.name }}</strong><small>{{ item.author.bio }}</small></span>
+          </button>
+          <div v-if="item.type === 'article'" class="toc">
+            <p class="toc-label">目录</p>
+            <button v-for="(section, index) in item.sections" :key="section.id" type="button" @click="scrollToSection(section.id)">
+              <span>0{{ index + 1 }}</span>{{ section.title }}
+            </button>
+          </div>
+          <div class="article-tags">
+            <button v-for="tag in item.tagIds" :key="tag" @click="$emit('go', 'topics?tag=' + tag)">#{{ tagName(tag) }}</button>
+          </div>
+          <button class="ai-launcher" @click="openAiPanel">
+            <span>✦</span><span>AI 辅助阅读</span><small>选择正文后可带入问题</small>
+          </button>
+          <button class="heading-action" @click="$emit('subscribe', item.author.id)">订阅作者 <span>+</span></button>
+          <button v-if="own" class="heading-action" @click="$emit('go', 'edit/' + item.type + '/' + item.id)">编辑内容 <span>↗</span></button>
+          <button v-if="own" class="heading-action danger-link" @click="$emit('delete', item)">删除内容</button>
+        </aside>
+        <div class="article-main">
+          <div class="article-heading">
+            <p class="eyebrow">{{ item.type === 'article' ? 'FEATURED ESSAY' : item.type === 'code' ? 'CODE NOTE' : 'QUESTION' }}</p>
+            <h1>{{ item.title }}</h1>
+            <p class="article-summary">{{ item.summary || item.description || item.content }}</p>
+          </div>
+          <div v-if="item.type === 'article' && item.image" class="article-cover cover-large" :style="{ backgroundImage: 'linear-gradient(135deg,rgba(24,22,19,.08),rgba(24,22,19,.48)),url(' + item.image + ')' }"></div>
+          <div v-if="item.type === 'article'" class="article-body" @mouseup="captureSelection" @touchend="captureSelection">
+            <section v-for="section in item.sections" :id="section.id" :key="section.id" class="article-section">
+              <h2>{{ section.title }}</h2>
+              <template v-for="(block, index) in section.blocks || []" :key="index">
+                <p v-if="block.type === 'paragraph'">{{ block.text }}</p>
+                <blockquote v-else-if="block.type === 'quote'">{{ block.text }}</blockquote>
+                <ul v-else-if="block.type === 'list'"><li v-for="line in block.items" :key="line">{{ line }}</li></ul>
+                <pre v-else class="article-code"><code>{{ block.text }}</code></pre>
+              </template>
+              <p v-for="paragraph in section.body || []" :key="paragraph">{{ paragraph }}</p>
+            </section>
+          </div>
+          <pre v-else-if="item.type === 'code'" class="code-detail" @mouseup="captureSelection" @touchend="captureSelection"><code>{{ item.code }}</code></pre>
+          <div v-else class="question-detail" @mouseup="captureSelection" @touchend="captureSelection">
+            <p>{{ item.content }}</p>
+            <pre v-if="item.relatedCode"><code>{{ item.relatedCode }}</code></pre>
+          </div>
+          <section class="comments-section">
+            <div class="section-heading compact">
+              <div><p class="eyebrow">RESPONSES</p><h2>回应 <small>{{ relatedComments.length }}</small></h2></div>
+            </div>
+            <form class="comment-form" @submit.prevent="sendComment">
+              <textarea v-model="comment" placeholder="分享你的想法..." rows="4" :disabled="commentStatus === 'loading'"></textarea>
+              <p v-if="commentError" class="field-error">{{ commentError }}</p>
+              <div>
+                <span>{{ commentStatus === 'success' ? '评论已发布' : commentStatus === 'loading' ? '正在发布...' : '至少 5 个字符' }}</span>
+                <button class="ai-submit" :disabled="commentStatus === 'loading'">{{ commentStatus === 'loading' ? '发布中...' : '发布评论' }} <b>↗</b></button>
+              </div>
+            </form>
+            <div v-for="entry in relatedComments" :key="entry.id" class="comment-row">
+              <div class="comment-avatar">{{ entry.userName.slice(0, 1) }}</div>
+              <div>
+                <div class="comment-meta"><strong>{{ entry.userName }}</strong><span>{{ formatDate(entry.createdAt) }}</span></div>
+                <p>{{ entry.content }}</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+      <button v-if="selectionAction.visible" class="selection-ai-button" :style="{ top: selectionAction.top + 'px', left: selectionAction.left + 'px' }" @mousedown.prevent @click="openAiPanel">询问 AI</button>
+      <div v-if="aiPanelOpen" class="ai-panel-backdrop" @click.self="closeAiPanel">
+        <aside class="ai-panel" role="dialog" aria-modal="true" aria-label="AI 辅助阅读">
+          <div class="ai-panel-head">
+            <div><p class="eyebrow">AI READING</p><h2>和这篇文章聊聊</h2></div>
+            <button class="panel-close" aria-label="关闭 AI 面板" @click="closeAiPanel">×</button>
+          </div>
+          <p class="ai-context-title">当前上下文：{{ item.title }}</p>
+          <div v-if="selectedText" class="selected-quote"><span>已选文字</span><p>{{ selectedText }}</p></div>
+          <p v-else class="ai-hint">尚未选择正文。你可以直接提问，或先选择一段文字后再打开此面板。</p>
+          <div v-if="relatedChats.length" class="ai-chat-list">
+            <article v-for="chat in relatedChats" :key="chat.id" class="ai-chat">
+              <div v-if="chat.selectedText" class="selected-quote ai-chat-quote"><span>关联文字</span><p>{{ chat.selectedText }}</p></div>
+              <div class="ai-question"><span>你</span><div><p>{{ chat.question }}</p><small>{{ formatDateTime(chat.createdAt) }}</small></div></div>
+              <div class="ai-answer"><span>AI</span><p>{{ chat.answer }}</p></div>
+            </article>
+          </div>
+          <form class="ai-form" @submit.prevent="ask">
+            <textarea v-model="question" rows="4" placeholder="输入一个具体问题，例如：这段话对我的工作有什么启发？"></textarea>
+            <p v-if="aiError" class="ai-error">{{ aiError }}</p>
+            <button class="ai-submit" :disabled="aiStatus === 'loading'">{{ aiStatus === 'loading' ? 'AI 正在思考...' : aiError ? '重新提交' : '询问 AI' }} <span>↗</span></button>
+          </form>
+        </aside>
+      </div>
+    </section>
+    <section v-else-if="loading" class="content-page"><EmptyBlock title="正在加载内容" description="正在整理正文和评论，请稍候。" /></section>
+    <section v-else-if="error" class="content-page"><EmptyBlock title="内容加载失败" :description="error" action="重新加载" @action="$emit('retry')" /></section>
+    <section v-else class="content-page"><EmptyBlock title="内容不存在" description="这个链接可能已失效。" action="回到首页" @action="$emit('go', 'home')" /></section>
+  `,
 }
 
 export const StudioView = {
